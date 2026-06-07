@@ -1,4 +1,6 @@
 /* Black Clover Yugen — Règlement */
+const SERVER_BATTLEMETRICS_ID = "36758575";
+
 const SEARCH_INDEX = [
   { title: "Communication et Tickets", section: "Règlement Général", url: "reglement-general.html#communication", keywords: "ticket staff discord politesse soundboard voix" },
   { title: "Duel et Pouvoirs", section: "Règlement Général", url: "reglement-general.html#duel", keywords: "combat duel passif gemmes capture" },
@@ -34,7 +36,31 @@ const SEARCH_INDEX = [
   { title: "Discord Spade", section: "Liens Utiles", url: "liens-utiles.html#discord-spade", keywords: "discord faction spade" },
   { title: "Boutique Yugen RP", section: "Liens Utiles", url: "liens-utiles.html#boutique", keywords: "shop achat yugenrp.com" },
   { title: "IP du serveur", section: "Liens Utiles", url: "liens-utiles.html#ip", keywords: "connecter garry's mod 185.29.166.215 steam" },
+  { title: "Statut du serveur", section: "Liens Utiles", url: "liens-utiles.html#ip", keywords: "en ligne joueurs connectés" },
 ];
+
+const SECTION_TO_CATEGORY = {
+  "Règlement Général": "reglement",
+  "Notions RP": "notions",
+  "Combats & Puissance": "combats",
+  "Grades & Factions": "grades",
+  "Relève": "releve",
+  "CK – RPK": "ck",
+  "Liens Utiles": "liens",
+};
+
+const CATEGORY_LABELS = {
+  all: "Tous",
+  reglement: "Règlement",
+  notions: "Notions RP",
+  combats: "Combats",
+  grades: "Grades",
+  releve: "Relève",
+  ck: "CK / RPK",
+  liens: "Liens",
+};
+
+const CATEGORY_ORDER = ["reglement", "notions", "combats", "grades", "releve", "ck", "liens"];
 
 function initHeader() {
   const header = document.querySelector(".site-header");
@@ -67,28 +93,73 @@ function initMobileMenu() {
   });
 }
 
-function initSearch(input, results) {
-  if (!input || !results) return;
+function highlightMatch(text, query) {
+  const idx = text.toLowerCase().indexOf(query);
+  if (idx === -1) return text;
+  return (
+    text.slice(0, idx) +
+    "<strong>" +
+    text.slice(idx, idx + query.length) +
+    "</strong>" +
+    text.slice(idx + query.length)
+  );
+}
+
+function getTextMatches(query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  return SEARCH_INDEX.filter((item) => {
+    const haystack = `${item.title} ${item.section} ${item.keywords}`.toLowerCase();
+    return haystack.includes(q);
+  });
+}
+
+function initSearch(input, results, options = {}) {
+  if (!input || !results) return null;
 
   let debounce;
+  let activeCategory = "all";
+  const wrapper = input.closest(".search-wrapper");
 
   function renderResults(query) {
     const q = query.trim().toLowerCase();
     if (!q) {
       results.classList.remove("visible");
       results.innerHTML = "";
+      activeCategory = "all";
       return;
     }
 
-    const matches = SEARCH_INDEX.filter((item) => {
-      const haystack = `${item.title} ${item.section} ${item.keywords}`.toLowerCase();
-      return haystack.includes(q);
-    }).slice(0, 8);
+    const textMatches = getTextMatches(query);
+    const availableCategories = CATEGORY_ORDER.filter((cat) =>
+      textMatches.some((item) => SECTION_TO_CATEGORY[item.section] === cat)
+    );
+
+    const matches = textMatches
+      .filter((item) => {
+        if (activeCategory === "all") return true;
+        return SECTION_TO_CATEGORY[item.section] === activeCategory;
+      })
+      .slice(0, 8);
+
+    let html = "";
+
+    if (availableCategories.length > 1) {
+      const filters = ["all", ...availableCategories]
+        .map(
+          (cat) => `
+        <button type="button" class="search-filter${cat === activeCategory ? " active" : ""}" data-category="${cat}">
+          ${CATEGORY_LABELS[cat]}
+        </button>`
+        )
+        .join("");
+      html += `<div class="search-filters">${filters}</div>`;
+    }
 
     if (matches.length === 0) {
-      results.innerHTML = '<div class="search-no-results">Aucun résultat trouvé</div>';
+      html += '<div class="search-no-results">Aucun résultat dans cette catégorie</div>';
     } else {
-      results.innerHTML = matches
+      html += matches
         .map(
           (item) => `
         <a href="${item.url}" class="search-result-item">
@@ -98,22 +169,21 @@ function initSearch(input, results) {
         )
         .join("");
     }
-    results.classList.add("visible");
-  }
 
-  function highlightMatch(text, query) {
-    const idx = text.toLowerCase().indexOf(query);
-    if (idx === -1) return text;
-    return (
-      text.slice(0, idx) +
-      "<strong>" +
-      text.slice(idx, idx + query.length) +
-      "</strong>" +
-      text.slice(idx + query.length)
-    );
+    results.innerHTML = html;
+    results.classList.add("visible");
+
+    results.querySelectorAll(".search-filter").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        activeCategory = btn.dataset.category;
+        renderResults(input.value);
+      });
+    });
   }
 
   input.addEventListener("input", (e) => {
+    activeCategory = "all";
     clearTimeout(debounce);
     debounce = setTimeout(() => renderResults(e.target.value), 150);
   });
@@ -123,7 +193,8 @@ function initSearch(input, results) {
   });
 
   document.addEventListener("click", (e) => {
-    if (!input.contains(e.target) && !results.contains(e.target)) {
+    const inWrapper = wrapper && wrapper.contains(e.target);
+    if (!inWrapper) {
       results.classList.remove("visible");
     }
   });
@@ -132,6 +203,112 @@ function initSearch(input, results) {
     if (e.key === "Escape") {
       results.classList.remove("visible");
       input.blur();
+      if (options.onEscape) options.onEscape();
+    }
+  });
+
+  return {
+    focus() {
+      input.focus();
+      if (input.value.trim()) renderResults(input.value);
+    },
+    open() {
+      input.focus();
+    },
+  };
+}
+
+function isSearchInputVisible(input) {
+  if (!input) return false;
+  const wrapper = input.closest(".search-wrapper");
+  if (!wrapper || wrapper.offsetParent === null) return false;
+  return getComputedStyle(wrapper).display !== "none";
+}
+
+function getVisibleSearchInput() {
+  const headerInput = document.querySelector(".site-header .search-input");
+  if (isSearchInputVisible(headerInput)) return headerInput;
+
+  const heroInput = document.querySelector(".hero-search .search-input");
+  if (isSearchInputVisible(heroInput)) return heroInput;
+
+  return null;
+}
+
+function initSearchPalette() {
+  if (document.querySelector(".search-palette")) return;
+
+  const palette = document.createElement("div");
+  palette.className = "search-palette";
+  palette.setAttribute("role", "dialog");
+  palette.setAttribute("aria-label", "Recherche rapide");
+  palette.innerHTML = `
+    <div class="search-palette-backdrop"></div>
+    <div class="search-palette-box">
+      <div class="search-wrapper">
+        <span class="search-icon">🔍</span>
+        <input type="search" class="search-input" placeholder="Rechercher une règle…" autocomplete="off">
+        <div class="search-results"></div>
+      </div>
+      <p class="search-palette-hint"><kbd>Échap</kbd> pour fermer</p>
+    </div>
+  `;
+  document.body.appendChild(palette);
+
+  const input = palette.querySelector(".search-input");
+  const results = palette.querySelector(".search-results");
+  const backdrop = palette.querySelector(".search-palette-backdrop");
+
+  const controller = initSearch(input, results, {
+    onEscape() {
+      closeSearchPalette();
+    },
+  });
+  input._searchController = controller;
+
+  function closeSearchPalette() {
+    palette.classList.remove("open");
+    input.value = "";
+    results.classList.remove("visible");
+    results.innerHTML = "";
+  }
+
+  backdrop.addEventListener("click", closeSearchPalette);
+  palette._close = closeSearchPalette;
+  palette._open = () => {
+    palette.classList.add("open");
+    controller.open();
+  };
+}
+
+function openSearch() {
+  const input = getVisibleSearchInput();
+  if (input?._searchController) {
+    document.querySelector(".search-palette")?._close?.();
+    input.scrollIntoView({ behavior: "smooth", block: "center" });
+    input._searchController.focus();
+    return;
+  }
+
+  const palette = document.querySelector(".search-palette");
+  if (palette) palette._open();
+}
+
+function initSearchShortcut() {
+  initSearchPalette();
+
+  document.querySelectorAll(".site-header .search-wrapper").forEach((wrapper) => {
+    if (wrapper.querySelector(".search-kbd-hint")) return;
+    const hint = document.createElement("span");
+    hint.className = "search-kbd-hint";
+    hint.innerHTML = "<kbd>Ctrl</kbd>+<kbd>K</kbd>";
+    wrapper.appendChild(hint);
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      openSearch();
     }
   });
 }
@@ -180,6 +357,41 @@ function initCards() {
   });
 }
 
+function applyServerStatus(online, players, maxPlayers) {
+  document.querySelectorAll("[data-server-players]").forEach((el) => {
+    if (online) {
+      el.textContent = `${players} / ${maxPlayers} joueurs`;
+      el.classList.add("online");
+      el.classList.remove("offline");
+    } else {
+      el.textContent = "Serveur hors ligne";
+      el.classList.add("offline");
+      el.classList.remove("online");
+    }
+  });
+}
+
+async function initServerStatus() {
+  if (!document.querySelector("[data-server-status-widget]")) return;
+
+  try {
+    const res = await fetch(`https://api.battlemetrics.com/servers/${SERVER_BATTLEMETRICS_ID}`);
+    if (!res.ok) throw new Error("API error");
+    const attrs = (await res.json())?.data?.attributes;
+    if (!attrs) throw new Error("No data");
+    applyServerStatus(
+      attrs.status === "online",
+      attrs.players ?? 0,
+      attrs.maxPlayers ?? "?"
+    );
+  } catch {
+    document.querySelectorAll("[data-server-players]").forEach((el) => {
+      el.textContent = "—";
+      el.classList.remove("online", "offline");
+    });
+  }
+}
+
 function initCopyIp() {
   const btn = document.getElementById("copy-ip-btn");
   const feedback = document.getElementById("copy-feedback");
@@ -203,13 +415,16 @@ document.addEventListener("DOMContentLoaded", () => {
   initHeader();
   initMobileMenu();
   document.querySelectorAll(".search-wrapper").forEach((wrapper) => {
-    initSearch(
-      wrapper.querySelector(".search-input"),
-      wrapper.querySelector(".search-results")
-    );
+    const input = wrapper.querySelector(".search-input");
+    const results = wrapper.querySelector(".search-results");
+    if (wrapper.closest(".search-palette")) return;
+    const controller = initSearch(input, results);
+    if (controller) input._searchController = controller;
   });
+  initSearchShortcut();
   initReveal();
   initRipple();
   initCards();
   initCopyIp();
+  initServerStatus();
 });
