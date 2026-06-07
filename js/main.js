@@ -1,5 +1,6 @@
 /* Black Clover Yugen — Règlement */
 const SERVER_BATTLEMETRICS_ID = "36758575";
+const REGLEMENT_LAST_UPDATED = "2026-06-07";
 
 const SEARCH_INDEX = [
   { title: "Communication et Tickets", section: "Règlement Général", url: "reglement-general.html#communication", keywords: "ticket staff discord politesse soundboard voix" },
@@ -392,6 +393,49 @@ async function initServerStatus() {
   }
 }
 
+function formatLastUpdated() {
+  return new Date(`${REGLEMENT_LAST_UPDATED}T12:00:00`).toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function initLastUpdated() {
+  const formatted = formatLastUpdated();
+
+  document.querySelectorAll("[data-last-updated]").forEach((el) => {
+    el.textContent = formatted;
+    el.setAttribute("datetime", REGLEMENT_LAST_UPDATED);
+  });
+
+  document.querySelectorAll(".site-footer").forEach((footer) => {
+    if (footer.querySelector(".footer-updated")) return;
+    const p = document.createElement("p");
+    p.className = "footer-updated";
+    p.innerHTML = `Dernière mise à jour : <time datetime="${REGLEMENT_LAST_UPDATED}">${formatted}</time>`;
+    footer.appendChild(p);
+  });
+}
+
+function initBackToTop() {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "back-to-top";
+  btn.setAttribute("aria-label", "Retour en haut");
+  btn.innerHTML = "↑";
+  document.body.appendChild(btn);
+
+  const toggle = () => btn.classList.toggle("visible", window.scrollY > 400);
+
+  window.addEventListener("scroll", toggle, { passive: true });
+  toggle();
+
+  btn.addEventListener("click", () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+}
+
 function initCopyIp() {
   const btn = document.getElementById("copy-ip-btn");
   const feedback = document.getElementById("copy-feedback");
@@ -427,4 +471,6 @@ document.addEventListener("DOMContentLoaded", () => {
   initCards();
   initCopyIp();
   initServerStatus();
+  initLastUpdated();
+  initBackToTop();
 });
