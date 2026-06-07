@@ -394,7 +394,10 @@ async function initServerStatus() {
 }
 
 function formatLastUpdated() {
-  return new Date(`${REGLEMENT_LAST_UPDATED}T12:00:00`).toLocaleDateString("fr-FR", {
+  const parts = REGLEMENT_LAST_UPDATED.split("-").map(Number);
+  if (parts.length !== 3 || parts.some(Number.isNaN)) return REGLEMENT_LAST_UPDATED;
+  const [year, month, day] = parts;
+  return new Date(year, month - 1, day).toLocaleDateString("fr-FR", {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -419,21 +422,27 @@ function initLastUpdated() {
 }
 
 function initBackToTop() {
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "back-to-top";
-  btn.setAttribute("aria-label", "Retour en haut");
-  btn.innerHTML = "↑";
-  document.body.appendChild(btn);
+  let btn = document.querySelector(".back-to-top");
+  if (!btn) {
+    btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "back-to-top";
+    btn.setAttribute("aria-label", "Retour en haut");
+    btn.innerHTML = "↑";
+    document.body.appendChild(btn);
+  }
 
-  const toggle = () => btn.classList.toggle("visible", window.scrollY > 400);
+  const toggle = () => btn.classList.toggle("visible", window.scrollY > 200);
 
-  window.addEventListener("scroll", toggle, { passive: true });
+  if (!btn.dataset.bound) {
+    btn.dataset.bound = "true";
+    window.addEventListener("scroll", toggle, { passive: true });
+    btn.addEventListener("click", () => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
+
   toggle();
-
-  btn.addEventListener("click", () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  });
 }
 
 function initCopyIp() {
